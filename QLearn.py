@@ -119,18 +119,17 @@ class AWSQLearner(object):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 4:
-        print('Usage; ' + sys.argv[0] + ' path_to_input gamma alpha restart')
+    if len(sys.argv) < 3:
+        print('Usage; ' + sys.argv[0] + ' gamma alpha restart')
         sys.exit(0)
 
     print('Args: ' + str(sys.argv))
         
-    sim_inputs_path = sys.argv[1]
-    gamma = float(sys.argv[2])
-    alpha = float(sys.argv[3])
+    gamma = float(sys.argv[1])
+    alpha = float(sys.argv[2])
     restart = False
-    if len(sys.argv) > 4:
-        if int(sys.argv[4]) > 0:
+    if len(sys.argv) > 3:
+        if int(sys.argv[3]) > 0:
             restart = True
     
     as_group  = 'AUTOSCALING_GROUP'
@@ -143,7 +142,7 @@ if __name__ == '__main__':
     states = []
     current_state = (0,0,0,0,0)
 
-    for i in xrange(1000*env.n_job_counts):
+    for i in xrange(1000):
         states.append(current_state)
         new_state, reward = qlearner.update(current_state, env)
         rewards.append(reward)
