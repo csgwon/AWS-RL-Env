@@ -23,6 +23,7 @@ where ```100``` is the number of iterations, and can be adjusted accordingly.  I
 The Agent EC2 instance automatically installs the [AWS environment](https://github.com/csgwon/AWS-RL-Env.git) to be used with this system.  The three algorithms that have been implemented are Tabular Q-learning, Deep Q-learning (DQN), and Double Dueling Deep Q Learning (D3Q).  These can be launched with the following commands at the command line:
 
 ```sh
+$ cd AWS-RL-Env
 $ python DQN.py
 $ python D3Q.py
 $ python QLearn.py
