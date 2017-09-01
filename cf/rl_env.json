@@ -239,7 +239,7 @@
             "/usr/local/bin/pip install tensorflow\n",
             "su -c 'git clone https://github.com/csgwon/AWS-RL-Env.git /home/ec2-user/AWS-RL-Env' ec2-user\n",
             "sed -i 's|ELB_URL|http://",{"Fn::GetAtt": ["WebServerELB", "DNSName"]},"|g' /home/ec2-user/AWS-RL-Env/*.py\n",
-            "sed -i 's|ELB_NAME|http://",{"Ref": "WebServerELB"},"|g' /home/ec2-user/AWS-RL-Env/*.py\n",
+            "sed -i 's|ELB_NAME|",{"Ref": "WebServerELB"},"|g' /home/ec2-user/AWS-RL-Env/*.py\n",
             "sed -i 's|AUTOSCALING_GROUP|",{"Ref": "WebServerASG"},"|g' /home/ec2-user/AWS-RL-Env/*.py\n"
           ]]}
         },
