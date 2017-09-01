@@ -1,0 +1,336 @@
+{
+  "Description": "Cloudformation for creating environment for reinforcement learning on AWS",
+  "Parameters": {
+    "ResourcePrefix": {
+      "Description": "Prefix used for all resources in stack",
+      "Type": "String",
+      "Default": "RLEnv"
+    },
+    "AllowedIP": {
+      "Description": "Whitelisted CIDR block for security group (must be of the form x.x.x.x)",
+      "Type": "String",
+      "MinLength": "9",
+      "MaxLength": "18",
+      "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})",
+      "ConstraintDescription": "Must be a valid IP CIDR range of the form x.x.x.x"
+    },
+    "KeyName": {
+      "Description" : "Name of an existing EC2 KeyPair to enable SSH access to the instance",
+      "Type": "AWS::EC2::KeyPair::KeyName"
+    },  
+    "WebServerPort": {
+      "Description" : "Web server listening port",
+      "Type": "String",
+      "ConstraintDescription" : "Numeric value only.",
+      "AllowedPattern": "(\\d{2,5})",
+      "Default": "80"
+    },
+    "WebServerHealthCheckPage": {
+      "Description": "Web page to visit to test web server health check",
+      "Type": "String",
+      "Default": "index.html"
+    },
+    "InstanceType": {
+      "Description": "Instance type to use for web service (add additional as desired - additions may require additional AMI entries)",
+      "Type": "String",
+      "Default": "t2.micro",
+      "AllowedValues" : [ "t2.micro", "t2.small", "t2.medium", "t2.large", "t2.xlarge" ],
+      "ConstraintDescription" : "Must be a valid EC2 instance type"
+    },
+    "Owner": {
+      "Description": "Your Name",
+      "Type": "String"
+    }
+  },
+  "Mappings": {
+    "CIDRRanges": {
+      "VPC": {
+        "Main": "10.0.0.0/16"
+      },
+      "Subnets": {
+        "PublicSubnet1"   : "10.0.1.0/24",
+        "PublicSubnet2"   : "10.0.2.0/24"
+      }
+    },
+    "AWSRegion2AMI" : {
+      "us-east-1" : {"Xenial": "ami-a4c7edb2"},
+      "us-east-2" : {"Xenial": "ami-8a7859ef"},
+      "us-west-2" : {"Xenial": "ami-327f5352"},
+      "us-west-1" : {"Xenial": "ami-6df1e514"}
+    }
+  },
+  "Resources": {
+    "VPCBase": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": { "Fn::FindInMap" : [ "CIDRRanges", "VPC", "Main"] },
+        "EnableDnsSupport": "True",
+        "EnableDnsHostnames": "True",
+        "Tags": [
+          { "Key": "Name", "Value":    { "Fn::Join" : ["", [{ "Ref" : "ResourcePrefix" }, "-VPC"]] } },
+          { "Key": "Owner", "Value":  { "Ref" : "Owner" } }
+        ]
+      }
+    },
+    "ELBSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Enable inbound network access access to EC2 instance.",
+        "VpcId": { "Ref": "VPCBase" },
+        "SecurityGroupIngress": [
+          {"IpProtocol": "tcp", "ToPort": "80", "FromPort": "80", "CidrIp": "0.0.0.0/0"}
+        ],
+        "Tags" : [
+          { "Key": "Name", "Value": { "Fn::Join" : ["", [{ "Ref" : "ResourcePrefix" }, "-ELB-SG"]] } },
+          { "Key": "Owner", "Value":  { "Ref" : "Owner" } }
+        ]
+      }
+    },
+    "InstanceSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Enable inbound network access access to EC2 instance.",
+        "VpcId": { "Ref": "VPCBase" },
+        "SecurityGroupIngress": [
+          {"IpProtocol": "tcp", "ToPort": "80", "FromPort": "80", "CidrIp": { "Fn::FindInMap" : [ "CIDRRanges", "VPC", "Main"] }},
+          {"IpProtocol": "tcp", "ToPort": "22", "FromPort": "22", "CidrIp": { "Fn::Join" : [ "", [{"Ref": "AllowedIP"}, "/32"]] }}
+        ],
+        "Tags" : [
+          { "Key": "Name", "Value": { "Fn::Join" : ["", [{ "Ref" : "ResourcePrefix" }, "-EC2-SG"]] } },
+          { "Key": "Owner", "Value":  { "Ref" : "Owner" } }
+        ]
+      }
+    },
+    "PublicSubnet1": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "AvailabilityZone": { "Fn::Select": [ "0", { "Fn::GetAZs": { "Ref": "AWS::Region" } } ] },
+        "CidrBlock": { "Fn::FindInMap" : [ "CIDRRanges", "Subnets", "PublicSubnet1"] },
+        "MapPublicIpOnLaunch": "True",
+        "Tags": [
+          { "Key": "Name", "Value": { "Fn::Join" : ["", [{ "Ref" : "ResourcePrefix" }, "-PublicSubnet1"]] } },
+          { "Key": "Owner", "Value":  { "Ref" : "Owner" } }
+        ],
+        "VpcId": { "Ref": "VPCBase" }
+      }
+    },
+    "PublicSubnet2": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "AvailabilityZone": { "Fn::Select": [ "1", { "Fn::GetAZs": { "Ref": "AWS::Region" } } ] },
+        "CidrBlock": { "Fn::FindInMap" : [ "CIDRRanges", "Subnets", "PublicSubnet2"] },
+        "MapPublicIpOnLaunch": "True",
+        "Tags": [
+          { "Key": "Name", "Value": { "Fn::Join" : ["", [{ "Ref" : "ResourcePrefix" }, "-PublicSubnet2"]] } },
+          { "Key": "Owner", "Value":  { "Ref" : "Owner" } }
+        ],
+        "VpcId": { "Ref": "VPCBase" }
+      }
+    },
+    "IGWBase" : {
+      "Type" : "AWS::EC2::InternetGateway",
+      "Properties" : {
+        "Tags" : [
+          { "Key": "Name", "Value": { "Fn::Join" : ["", [{ "Ref" : "ResourcePrefix" }, "-IGW"]] } },
+          { "Key": "Owner", "Value":  { "Ref" : "Owner" } }
+        ]
+      }
+    },
+    "VGAIGWBase" : {
+      "Type" : "AWS::EC2::VPCGatewayAttachment",
+      "Properties" : {
+        "InternetGatewayId" : { "Ref" : "IGWBase" },
+        "VpcId" : { "Ref" : "VPCBase" }
+      }
+    },
+    "RouteTablePublic" : {
+      "Type" : "AWS::EC2::RouteTable",
+      "Properties" : {
+        "VpcId" : { "Ref" : "VPCBase" },
+        "Tags" : [
+          { "Key": "Name", "Value": { "Fn::Join" : ["", [{ "Ref" : "ResourcePrefix" }, "-PublicRT"]] } },
+          { "Key": "Owner", "Value":  { "Ref" : "Owner" } }
+        ]
+      }
+    },
+    "RoutePublicDefault" : {
+      "DependsOn": [ "VGAIGWBase" ],
+      "Type" : "AWS::EC2::Route",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "RouteTablePublic" },
+        "DestinationCidrBlock" : "0.0.0.0/0",
+        "GatewayId" : { "Ref" : "IGWBase" }
+      }
+    },
+    "PublicSubnet1RouteAssociation" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "SubnetId" : { "Ref" : "PublicSubnet1"},
+        "RouteTableId" : { "Ref" : "RouteTablePublic" }
+      }
+    },
+    "PublicSubnet2RouteAssociation" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "SubnetId" : { "Ref" : "PublicSubnet2"},
+        "RouteTableId" : { "Ref" : "RouteTablePublic" }
+      }
+    },
+    "AgentRole" : {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [ {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": [ "ec2.amazonaws.com" ]
+            },
+            "Action": [ "sts:AssumeRole" ]
+          } ]
+        },
+        "Path": "/",
+        "Policies": [ {
+          "PolicyName": "CloudWatchAccess",
+          "PolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [ {
+              "Effect": "Allow",
+              "Action": [ 
+                "s3:*",
+                "autoscaling:*",
+                "cloudwatch:*",
+                "logs:*",
+                "sns:*",
+                "elasticloadbalancing:Describe*"
+              ],
+              "Resource": "*"
+            } ]
+          }
+        } ]
+      }
+    },
+    "AgentInstanceProfile" : {
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties": {
+        "Path": "/",
+        "Roles": [ {
+          "Ref": "AgentRole"
+        } ]
+      }
+    },
+    "Agent" : {
+      "Type" : "AWS::EC2::Instance",
+     "Properties" : {
+        "ImageId" : { "Fn::FindInMap" : [ "AWSRegion2AMI", { "Ref" : "AWS::Region" }, "Xenial"]},
+        "InstanceType" : {"Ref": "InstanceType"},
+        "SecurityGroupIds": [ {"Ref" : "InstanceSecurityGroup"} ],
+        "KeyName" : {"Ref": "KeyName"},
+        "SubnetId" : {"Ref": "PublicSubnet1"},
+        "IamInstanceProfile": {"Ref": "AgentInstanceProfile"},
+        "UserData": {
+          "Fn::Base64": { "Fn::Join":["", [
+            "#!/bin/bash -ex\n",
+            "su -c 'aws configure set default.region ", {"Ref": "AWS::Region"}, "' ec2-user\n",
+            "yum -y groupinstall 'Development Tools'\n",
+            "yum -y install emacs git mlocate lynx\n",
+            "pip install boto3 numpy pytz\n",
+            "pip install --upgrade pip\n",
+            "/usr/local/bin/pip install tensorflow\n",
+            "su -c 'git clone https://github.com/csgwon/AWS-RL-Env.git /home/ec2-user/AWS-RL-Env' ec2-user\n",
+            "sed -i 's|ELB_URL|http://",{"Fn::GetAtt": ["WebServerELB", "DNSName"]},"|g' /home/ec2-user/AWS-RL-Env/*.py\n',
+            "sed -i 's|ELB_NAME|http://",{"Ref": "WebServerELB"},"|g' /home/ec2-user/AWS-RL-Env/*.py\n',
+            "sed -i 's|AUTOSCALING_GROUP|",{"Ref": "WebServerASG"},"|g' /home/ec2-user/AWS-RL-Env/*.py\n'
+          ]]}
+        },
+        "Tags" : [
+          { "Key": "Name", "Value": { "Fn::Join" : ["", [{ "Ref" : "ResourcePrefix" }, "Agent-EC2"]] } },
+          { "Key": "Owner", "Value":  { "Ref" : "Owner" } }
+        ]
+
+      }
+    },
+    "Driver" : {
+      "Type" : "AWS::EC2::Instance",
+     "Properties" : {
+        "ImageId" : { "Fn::FindInMap" : [ "AWSRegion2AMI", { "Ref" : "AWS::Region" }, "Xenial"]},
+        "InstanceType" : {"Ref": "InstanceType"},
+        "SecurityGroupIds": [ {"Ref" : "InstanceSecurityGroup"} ],
+        "KeyName" : {"Ref": "KeyName"},
+        "SubnetId" : {"Ref": "PublicSubnet2"},
+        "UserData": {
+          "Fn::Base64": { "Fn::Join":["", [
+            "#!/bin/bash -ex\n",
+            "yum -y install emacs git\n",
+            "su -c 'git clone https://gist.github.com/csgwon/5f0b04f8a87eef2b2a34cacd1a07da9f /home/ec2-user/driver' ec2-user\n",
+            "sed -i 's|ELB_URL|http://",{"Fn::GetAtt": ["WebServerELB", "DNSName"]},"|g' /home/ec2-user/driver/driver.py\n",
+            "chmod +x /home/ec2-user/driver/driver.py\n"
+          ]]}
+        },
+        "Tags" : [
+          { "Key": "Name", "Value": { "Fn::Join" : ["", [{ "Ref" : "ResourcePrefix" }, "Driver-EC2"]] } },
+          { "Key": "Owner", "Value":  { "Ref" : "Owner" } }
+        ]
+      }
+    },
+    "WebServerELB": {
+      "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties": {
+        "LoadBalancerName": { "Fn::Join" : ["", [{ "Ref" : "ResourcePrefix" }, "-ELB"]] },
+        "SecurityGroups": [  {"Ref": "ELBSecurityGroup"} ],
+        "Subnets": [ {"Ref": "PublicSubnet1"} ],
+        "Listeners": [ {
+          "LoadBalancerPort": "80",
+          "InstancePort": {"Ref": "WebServerPort"},
+          "Protocol": "HTTP"
+        } ],
+        "HealthCheck": {
+          "Target": {
+            "Fn::Join": ["", ["HTTP:", {"Ref": "WebServerPort"}, "/", {"Ref": "WebServerHealthCheckPage"}]]
+          },
+          "HealthyThreshold": "2",
+          "UnhealthyThreshold": "3",
+          "Interval": "30",
+          "Timeout": "5"
+        }
+      }
+    },
+    "WebServerASGLaunchConfig": {
+      "Type": "AWS::AutoScaling::LaunchConfiguration",
+      "Properties": {
+        "ImageId" : { "Fn::FindInMap" : [ "AWSRegion2AMI", { "Ref" : "AWS::Region" }, "Xenial"]},
+        "InstanceType" : {"Ref": "InstanceType"},
+        "KeyName" : {"Ref": "KeyName"},
+        "SecurityGroups": [ {"Ref": "InstanceSecurityGroup"} ],
+        "UserData": {
+          "Fn::Base64": { "Fn::Join":["", [
+            "#!/bin/bash -ex\n",
+            "yum -y install httpd\n",
+            "echo 'Hello World' > /var/www/html/index.html\n",
+            "service httpd start"
+          ]]}
+        }
+      }
+    },
+    "WebServerASG": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "Properties": {
+        "DesiredCapacity": "1",
+        "MinSize": "1",
+        "MaxSize": "5",
+        "VPCZoneIdentifier": [{"Ref": "PublicSubnet1"}],
+        "LoadBalancerNames": [{"Ref": "WebServerELB"}],
+        "LaunchConfigurationName": {"Ref": "WebServerASGLaunchConfig"},
+        "Tags" : [
+          { "Key": "Name", "Value": { "Fn::Join" : ["", [{ "Ref" : "ResourcePrefix" }, "-EC2"]] }, "PropagateAtLaunch": true },
+          { "Key": "Owner", "Value":  { "Ref" : "Owner" }, "PropagateAtLaunch": true }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "VPCID" : { "Value" : { "Ref" : "VPCBase" } },
+    "PublicSubnet1" : { "Value" : { "Ref" : "PublicSubnet1"} },
+    "DefaultSG" : { "Value" : { "Fn::GetAtt" : ["VPCBase", "DefaultSecurityGroup"] }}
+  }
+}
