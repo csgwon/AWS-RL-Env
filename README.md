@@ -31,4 +31,4 @@ $ python QLearn.py
 
 ### Acknowledgements
 
-The DQN and D3Q implementations were provided by Zhiguang Wang.
+The DQN and D3Q implementations were provided by [Zhiguang Wang](https://github.com/wangz813).
