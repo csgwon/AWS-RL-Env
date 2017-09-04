@@ -1,7 +1,7 @@
 # AWS environment for reinforcement learning
 
 ### Introduction
-The CloudFormation script and associated code provides an environment that can be used to train and test reinforcement learning algorithms for provisioning resources based on CloudWatch metrics.
+This repository is associated with the "Automated Cloud Provisioning on AWS Using Deep Reinforcement Learning" publication (reference TBD). The CloudFormation script and associated code provides an environment that can be used to train and test reinforcement learning algorithms for provisioning resources based on CloudWatch metrics.
 
 ### CloudFormation script
 
