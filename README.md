@@ -31,4 +31,4 @@ $ python QLearn.py
 
 ### Acknowledgements
 
-The DQN and D3Q implementations were provided by [Zhiguang Wang](https://github.com/wangz813).
+The DQN and D3Q implementations were provided by [Zhiguang Wang](https://github.com/wangz813).  [Andy Spohn](https://github.com/spohnan) provided essential feedback on AWS-related aspects, including cost model and CloudFormation.
